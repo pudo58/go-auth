@@ -27,12 +27,12 @@ services:
     environment:
       DB_USER: tholv
       DB_PASS: 123456
-      DB_HOST: mysql             # chính là tên service mysql bên trên
+      DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: authdb
-      JWT_SECRET: "SUPER_SECRET_KEY_123"
+      JWT_SECRET: "bVJxQ2t5N0pKNW14QVFQdzZxSVB4RTM1Nk5nQjF2TFRpQ2h6Um5tQjZGT1FzT0xMeWRxV0E="
     ports:
-      - "8080:8080"              # gọi từ ngoài bằng localhost:8080
+      - "8080:8080"
   adminer:
     image: adminer
     restart: always
