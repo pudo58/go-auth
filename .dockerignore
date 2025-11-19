@@ -1,5 +1,4 @@
 .git
-.ide
 .gitignore
 Dockerfile
 docker-compose.yml
