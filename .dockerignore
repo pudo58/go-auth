@@ -1,0 +1,10 @@
+.git
+.ide
+.gitignore
+Dockerfile
+docker-compose.yml
+*.md
+auth.db
+node_modules
+dist
+tmp

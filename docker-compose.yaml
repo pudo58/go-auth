@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: auth-mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: authdb
+      MYSQL_USER: tholv
+      MYSQL_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: 123456
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  auth-service:
+    build: .
+    container_name: auth-service
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      DB_USER: tholv
+      DB_PASS: 123456
+      DB_HOST: mysql             # chính là tên service mysql bên trên
+      DB_PORT: "3306"
+      DB_NAME: authdb
+      JWT_SECRET: "SUPER_SECRET_KEY_123"
+    ports:
+      - "8080:8080"              # gọi từ ngoài bằng localhost:8080
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mysql
+
+volumes:
+  mysql_data:
