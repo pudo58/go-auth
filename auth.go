@@ -11,7 +11,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("SUPER_SECRET_KEY_123")
+var jwtSecret = make([]byte, 32)
+
+/* ===================== DTO ===================== */
 
 type RegisterRequest struct {
 	Name     string `json:"name" binding:"required,min=2"`
@@ -31,6 +33,8 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+/* ===================== PASSWORD ===================== */
+
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	return string(bytes), err
@@ -41,10 +45,13 @@ func CheckPassword(hash, password string) bool {
 	return err == nil
 }
 
+/* ===================== JWT ===================== */
+
 func GenerateToken(user *User) (string, error) {
 	claims := &Claims{
 		UserID: user.ID,
 		Email:  user.Email,
+		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -56,23 +63,31 @@ func GenerateToken(user *User) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
+/* ===================== HANDLERS ===================== */
+
 func RegisterHandler(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	var count int64
 	db.Model(&User{}).Where("email = ?", req.Email).Count(&count)
 	if count > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email đã tồn tại"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Email already exists",
+		})
 		return
 	}
 
 	hash, err := HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không hash được mật khẩu"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to hash password",
+		})
 		return
 	}
 
@@ -84,12 +99,14 @@ func RegisterHandler(c *gin.Context) {
 	}
 
 	if err := db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi tạo user"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create user",
+		})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Đăng ký thành công",
+		"message": "Registration successful",
 		"user": gin.H{
 			"id":    user.ID,
 			"name":  user.Name,
@@ -101,39 +118,51 @@ func RegisterHandler(c *gin.Context) {
 func LoginHandler(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	var user User
 	if err := db.Where("email = ?", req.Email).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sai email hoặc mật khẩu"})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid email or password",
+		})
 		return
 	}
 
 	if !CheckPassword(user.Password, req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sai email hoặc mật khẩu"})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid email or password",
+		})
 		return
 	}
 
 	token, err := GenerateToken(&user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không tạo được token"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate token",
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Đăng nhập thành công",
+		"message": "Login successful",
 		"token":   token,
 	})
 }
 
+/* ===================== MIDDLEWARE ===================== */
+
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
 
+		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Thiếu header Authorization"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Missing Authorization header",
+			})
 			c.Abort()
 			return
 		}
@@ -141,7 +170,9 @@ func AuthMiddleware() gin.HandlerFunc {
 		var tokenString string
 		_, err := fmt.Sscanf(authHeader, "Bearer %s", &tokenString)
 		if err != nil || tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header không hợp lệ"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid Authorization header format",
+			})
 			c.Abort()
 			return
 		}
@@ -151,14 +182,18 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token không hợp lệ"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid or expired token",
+			})
 			c.Abort()
 			return
 		}
 
 		claims, ok := token.Claims.(*Claims)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Không parse được claims"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Failed to parse token claims",
+			})
 			c.Abort()
 			return
 		}
@@ -170,13 +205,17 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+/* ===================== PROFILE ===================== */
+
 func ProfileHandler(c *gin.Context) {
 	userIDVal, _ := c.Get("user_id")
 	emailVal, _ := c.Get("user_email")
 
 	var user User
 	if err := db.First(&user, userIDVal.(uint)).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy user"})
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "User not found",
+		})
 		return
 	}
 
@@ -187,6 +226,8 @@ func ProfileHandler(c *gin.Context) {
 		"role":  user.Role,
 	})
 }
+
+/* ===================== CONFIG ===================== */
 
 func LoadJWTSecretFromEnv() {
 	if val := os.Getenv("JWT_SECRET"); val != "" {
