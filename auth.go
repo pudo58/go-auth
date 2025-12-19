@@ -11,7 +11,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = make([]byte, 32)
+var jwtSecret = []byte{
+	12, 87, 34, 199, 56, 201, 145, 9,
+	77, 61, 248, 90, 133, 42, 176, 18,
+	209, 66, 101, 222, 11, 94, 173, 38,
+	155, 7, 190, 64, 88, 250, 31, 170,
+}
 
 /* ===================== DTO ===================== */
 
@@ -27,7 +32,7 @@ type LoginRequest struct {
 }
 
 type Claims struct {
-	UserID uint   `json:"user_id"`
+	UserID uint   `json:"id"`
 	Email  string `json:"email"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
@@ -53,6 +58,7 @@ func GenerateToken(user *User) (string, error) {
 		Email:  user.Email,
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   fmt.Sprint(user.Email),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "auth-service",
