@@ -17,9 +17,9 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	api := r.Group("/api/v1")
+	api := r.Group("/auth")
 
-	auth := api.Group("/auth")
+	auth := api.Group("/v1")
 	{
 		auth.POST("/register", RegisterHandler)
 		auth.POST("/login", LoginHandler)
